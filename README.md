@@ -179,6 +179,21 @@ Eventos publicados pelo relay do outbox em `wager-events.fifo`:
 `WagerTransactionProcessed`, `WagerTransactionRejected`, `WalletBalanceChanged`,
 `WagerTransactionPendingReference`.
 
+## Observabilidade
+
+Logs estruturados (JSON, um por linha) vão para o **stdout** do processo — no
+terminal onde rodou `bun run start:*`, ou via `docker compose logs -f api` (ou
+`consumer` / `outbox`). Cada linha de requisição carrega um `correlationId`
+(também devolvido no header `x-correlation-id` da resposta), sem headers, body
+ou dados financeiros. `LOG_LEVEL` controla o nível (`info` padrão).
+
+`GET /metrics` expõe as métricas Prometheus: transações por status, replays,
+duplicatas, retries, DLQ, conflitos de lock, e histogramas de latência —
+incluindo `wager_wallet_lock_wait_seconds` e
+`wager_outbox_publish_duration_seconds{eventType}`, que isolam onde o tempo vai
+nos dois pontos de contenção do sistema (lock da wallet e publish no SQS). Lista
+completa e o porquê de cada uma em [`ARCHITECTURE.md`](ARCHITECTURE.md).
+
 ## Variáveis de ambiente
 
 Lista completa, agrupada e com valores padrão em [`.env.example`](.env.example).

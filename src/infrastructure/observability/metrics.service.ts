@@ -71,6 +71,21 @@ export class MetricsService {
     registers: [this.registry],
   });
 
+  private readonly walletLockWait = new Histogram({
+    name: "wager_wallet_lock_wait_seconds",
+    help: "Time spent waiting to acquire the SELECT ... FOR UPDATE lock on a wallet row",
+    buckets: [0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2],
+    registers: [this.registry],
+  });
+
+  private readonly outboxPublishDuration = new Histogram({
+    name: "wager_outbox_publish_duration_seconds",
+    help: "Latency of a single publish call to the broker, per event type",
+    labelNames: ["eventType"] as const,
+    buckets: [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 5],
+    registers: [this.registry],
+  });
+
   private readonly outboxPending = new Gauge({
     name: "wager_outbox_pending",
     help: "Unpublished outbox rows",
@@ -155,6 +170,14 @@ export class MetricsService {
 
   recordLockConflict(): void {
     this.lockConflicts.inc();
+  }
+
+  recordLockWait(seconds: number): void {
+    this.walletLockWait.observe(seconds);
+  }
+
+  recordOutboxPublish(eventType: string, seconds: number): void {
+    this.outboxPublishDuration.observe({ eventType }, seconds);
   }
 
   setOutbox(pending: number, lagSeconds: number): void {

@@ -35,6 +35,8 @@ export class MikroUnitOfWork implements UnitOfWork {
     private readonly orm: MikroORM,
     /** Chamado sempre que um conflito de deadlock / lost update é normalizado para transitório. */
     private readonly onLockConflict?: () => void,
+    /** Chamado com o tempo (segundos) gasto esperando o `FOR UPDATE` da wallet. */
+    private readonly onLockWait?: (seconds: number) => void,
   ) {}
 
   async run<T>(
@@ -50,11 +52,13 @@ export class MikroUnitOfWork implements UnitOfWork {
         const scoped = txEm as EntityManager;
 
         if (options.lockWallet) {
+          const waitStartedAt = performance.now();
           await scoped.findOne(
             WalletEntity,
             { id: options.lockWallet },
             { lockMode: LockMode.PESSIMISTIC_WRITE },
           );
+          this.onLockWait?.((performance.now() - waitStartedAt) / 1000);
         }
 
         const repos: TransactionalRepositories = {

@@ -252,6 +252,19 @@ uma tabela `provider_credential` com rotação — o mesmo port, outra implement
   duplicados, retries, mensagens em DLQ, conflitos de lock, falhas de auth por
   `{reason}`; gauges de outbox (`pending`, `lag_seconds`); histograma
   `wager_processing_duration_seconds`; mismatches de reconciliação.
+- **Telemetria por etapa** — dois histogramas isolam onde o tempo vai nos pontos
+  de contenção já discutidos nos itens 4 e 6, sem a infraestrutura de um tracer
+  distribuído (OpenTelemetry é diferencial opcional, item 12):
+  `wager_wallet_lock_wait_seconds`, medido em `MikroUnitOfWork.run()` como o
+  tempo entre pedir e obter o `SELECT ... FOR UPDATE` da wallet (separa fila de
+  lock de tempo de processamento — cresce sob uma hot wallet, fica ~0 em
+  wallets distintas); e `wager_outbox_publish_duration_seconds{eventType}`,
+  medido em `SqsMessagePublisher.publish()` como a latência de um único
+  `SendMessage` (separa lentidão do broker de acúmulo por volume no
+  `wager_outbox_lag_seconds`). Ambos são passados por callback opcional ao
+  adaptador — a mesma forma como `onLockConflict` já liga
+  `MikroUnitOfWork` ao `MetricsService` — então nenhuma camada de domínio ou
+  de aplicação toma conhecimento de métricas.
 
 ## 11. Testes (item 13)
 

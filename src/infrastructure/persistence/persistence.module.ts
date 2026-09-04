@@ -19,7 +19,11 @@ import { MikroUnitOfWork } from "./mikro-orm/mikro-unit-of-work";
     {
       provide: UNIT_OF_WORK,
       useFactory: (orm: MikroORM, metrics: MetricsService) =>
-        new MikroUnitOfWork(orm, () => metrics.recordLockConflict()),
+        new MikroUnitOfWork(
+          orm,
+          () => metrics.recordLockConflict(),
+          (seconds) => metrics.recordLockWait(seconds),
+        ),
       inject: [MikroORM, MetricsService],
     },
   ],

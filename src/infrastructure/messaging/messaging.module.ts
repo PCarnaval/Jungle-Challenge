@@ -32,9 +32,9 @@ import { OutboxRelayWorker } from "./outbox/outbox-relay.worker";
     },
     {
       provide: MESSAGE_PUBLISHER,
-      useFactory: (sqs: SQSClient, config: AppConfig) =>
-        new SqsMessagePublisher(sqs, config.sqs.eventsQueueUrl),
-      inject: [SQS_CLIENT, APP_CONFIG],
+      useFactory: (sqs: SQSClient, config: AppConfig, metrics: MetricsService) =>
+        new SqsMessagePublisher(sqs, config.sqs.eventsQueueUrl, metrics),
+      inject: [SQS_CLIENT, APP_CONFIG, MetricsService],
     },
     {
       provide: PublishOutbox,
