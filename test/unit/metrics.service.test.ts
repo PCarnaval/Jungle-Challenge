@@ -1,4 +1,4 @@
-wsl import { describe, expect, it } from "bun:test";
+import { describe, expect, it } from "bun:test";
 import { MetricsService } from "../../src/infrastructure/observability/metrics.service";
 import { WagerTransactionStatus } from "../../src/domain/wagering/wager-transaction";
 
