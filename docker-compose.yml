@@ -1,0 +1,109 @@
+# Orquestração local. Os serviços `api`, `consumer` e `outbox` dependem de
+# src/main.ts (entregue a partir da Fase 5/6). `postgres` e `localstack`
+# já podem ser usados de imediato para os testes de integração.
+name: wager
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: wager
+      POSTGRES_PASSWORD: wager
+      POSTGRES_DB: wager
+    ports:
+      - "5432:5432"
+    command: ["postgres", "-c", "max_connections=200"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wager -d wager"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  localstack:
+    image: localstack/localstack:3
+    environment:
+      SERVICES: sqs
+      DEBUG: "0"
+    ports:
+      - "4566:4566"
+    volumes:
+      - ./docker/localstack-bootstrap.sh:/etc/localstack/init/ready.d/bootstrap.sh
+    healthcheck:
+      test: ["CMD-SHELL", "awslocal sqs list-queues >/dev/null 2>&1 || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["bun", "run", "migration:up"]
+    environment:
+      DATABASE_URL: postgres://wager:wager@postgres:5432/wager
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["bun", "src/main.ts"]
+    environment: &app_env
+      NODE_ENV: production
+      HTTP_PORT: "3000"
+      DATABASE_URL: postgres://wager:wager@postgres:5432/wager
+      AWS_REGION: us-east-1
+      AWS_ENDPOINT_URL: http://localstack:4566
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      SQS_WAGER_QUEUE_URL: http://localstack:4566/000000000000/wager-transactions.fifo
+      SQS_WAGER_DLQ_URL: http://localstack:4566/000000000000/wager-transactions-dlq.fifo
+      SQS_EVENTS_QUEUE_URL: http://localstack:4566/000000000000/wager-events.fifo
+      # Defina AUTH_MODE=hmac + PROVIDER_SECRETS='{"provider-a":"..."}' para exigir requisições assinadas.
+      AUTH_MODE: none
+      WORKER: api
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      localstack:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  consumer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["bun", "src/main.ts"]
+    environment:
+      <<: *app_env
+      WORKER: consumer
+      CONSUMER_NAME: wager-consumer
+    deploy:
+      replicas: 3
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      localstack:
+        condition: service_healthy
+
+  outbox:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["bun", "src/main.ts"]
+    environment:
+      <<: *app_env
+      WORKER: outbox
+    deploy:
+      replicas: 2
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      localstack:
+        condition: service_healthy

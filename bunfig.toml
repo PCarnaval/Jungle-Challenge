@@ -1,0 +1,6 @@
+# As suítes de integração e de concorrência sobem seu próprio Postgres +
+# LocalStack via testcontainers. O preload para a stack compartilhada uma
+# única vez, depois de todos os arquivos.
+[test]
+timeout = 60000
+preload = ["./test/support/teardown.ts"]
