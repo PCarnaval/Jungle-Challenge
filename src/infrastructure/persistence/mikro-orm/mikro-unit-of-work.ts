@@ -89,9 +89,40 @@ function normalizeError(err: unknown): unknown {
     err instanceof DeadlockException ||
     err instanceof LockWaitTimeoutException ||
     err instanceof ConnectionException ||
-    err instanceof ConcurrentModificationError
+    err instanceof ConcurrentModificationError ||
+    isConnectivityError(err)
   ) {
     return new TransientInfrastructureError(`Retryable database failure: ${(err as Error).message}`, err);
   }
   return err;
+}
+
+const CONNECTIVITY_CODES = new Set([
+  "ECONNREFUSED",
+  "ECONNRESET",
+  "ETIMEDOUT",
+  "ENOTFOUND",
+  "EHOSTUNREACH",
+  "ENETUNREACH",
+  "EPIPE",
+]);
+const CONNECTIVITY_MESSAGE =
+  /ECONNREFUSED|ECONNRESET|ETIMEDOUT|ENOTFOUND|Connection terminated|connection closed|server closed the connection|timeout expired|too many clients/i;
+
+/**
+ * O Postgres inacessível chega como um `AggregateError` cru do `net` (ou um erro
+ * do driver com `code`), que o MikroORM não embrulha num `ConnectionException`.
+ * Sem isto, "banco fora" viraria 500 em vez do 503 retryable que o item 9 pede.
+ * Varre a cadeia `cause` / `AggregateError.errors`.
+ */
+export function isConnectivityError(err: unknown, seen = new Set<unknown>()): boolean {
+  if (!err || typeof err !== "object" || seen.has(err)) return false;
+  seen.add(err);
+  const e = err as { code?: unknown; message?: unknown; errors?: unknown; cause?: unknown };
+  if (typeof e.code === "string" && CONNECTIVITY_CODES.has(e.code)) return true;
+  if (typeof e.message === "string" && CONNECTIVITY_MESSAGE.test(e.message)) return true;
+  if (Array.isArray(e.errors) && e.errors.some((inner) => isConnectivityError(inner, seen))) {
+    return true;
+  }
+  return isConnectivityError(e.cause, seen);
 }
