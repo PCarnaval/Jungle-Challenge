@@ -79,13 +79,13 @@ inbox, a linha da transação e a linha do outbox.
 
 | Alternativa | Por que não escolhida |
 |---|---|
-| **`FOR UPDATE` por wallet** | Serializa apenas o trabalho da mesma wallet; wallets diferentes seguem em paralelo. O cenário do item 8 sai de graça. |
+| **`FOR UPDATE` por wallet** | Serializa apenas o trabalho da mesma wallet; wallets diferentes seguem em paralelo. |
 | Optimistic (`version` CAS) + retry | Uma hot wallet degenera em tempestade de retry e a latência fica imprevisível. Mantido como defesa em profundidade — a coluna `version` ainda é escrita e verificada. |
 | `UPDATE ... SET balance = balance - x WHERE balance >= x` | Empurra a regra de domínio para o SQL e não compõe com as escritas multi-linha (ledger + outbox + inbox). |
 | Lock global / advisory compartilhado | Proibido pelo item 5.6. |
 
-A ordenação e o dedup do SQS FIFO (`MessageGroupId = walletId`) são otimização que
-reduz contenção, nunca a garantia de correção — as constraints do banco são a
+A ordenação e o dedup do SQS FIFO (`MessageGroupId = walletId`) são otimizações que
+reduzem contenções, nunca a garantia de correção — as constraints do banco são a
 última linha de defesa.
 
 ### Cenário obrigatório (item 8)
